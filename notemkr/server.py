@@ -41,16 +41,19 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from .quantize import DEFAULT_GRID
+from .runtime import bundle_dir, default_jobs_dir, web_dir
 from .split_hands import DEFAULT_SPLIT_PITCH, HandSplitParams
 from .transcribe import TranscriptionParams
 
 # --- Podesavanja ---------------------------------------------------------------------
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+# Putanje idu preko `notemkr.runtime`, a ne preko `__file__`: u PyInstaller paketu
+# `web/` nije pored ovog modula, a `jobs/` mora da zavrsi na upisivom mestu.
+REPO_ROOT = bundle_dir()
 
 # Koren frontend foldera i podrazumevani folder za rezultate poslova.
-WEB_DIR = REPO_ROOT / "web"
-DEFAULT_JOBS_DIR = REPO_ROOT / "jobs"
+WEB_DIR = web_dir()
+DEFAULT_JOBS_DIR = default_jobs_dir()
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8000
@@ -570,9 +573,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Pokreni lokalni server (konzolna skripta `notemkr`)."""
+    """Pokreni lokalni server (konzolna skripta `notemkr`).
+
+    Za spakovanu (.exe) verziju ulazna tacka je `notemkr.launcher` — ista aplikacija,
+    ali sa trazenjem slobodnog porta i porukama za netehnickog korisnika.
+    """
     import uvicorn
 
+    from .runtime import prepare_runtime
+
+    prepare_runtime()
     args = build_parser().parse_args(argv)
     app = create_app(jobs_dir=args.jobs_dir)
     url = f"http://{args.host}:{args.port}/"
