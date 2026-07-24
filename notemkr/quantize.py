@@ -10,7 +10,9 @@ from __future__ import annotations
 from typing import Any
 
 
-def quantize_notes(notes: list[dict[str, Any]], tempo_bpm: float | None = None) -> list[dict[str, Any]]:
+def quantize_notes(
+    notes: list[dict[str, Any]], tempo_bpm: float | None = None
+) -> list[dict[str, Any]]:
     """Poravnaj note na muzicku resetku prema (procenjenom) tempu.
 
     Stub: vraca note nepromenjene. Implementacija dolazi u Tasku 4.

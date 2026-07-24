@@ -7,9 +7,9 @@ ručnom "skidanju" pesama na sluh.
 > Ovo je **pomoć/nacrt**, ne savršena transkripcija. Polifonija i brzi pasaži su najteži.
 
 ## Status
-Repo je u izradi (orkestrirani build kroz VibeTerm). Ovaj task (1) postavlja scaffold:
-strukturu paketa, pinovane zavisnosti i prazan pipeline stub. Prave faze dolaze kroz
-taskove 2–9.
+Repo je u izradi (orkestrirani build kroz VibeTerm). Implementirano: dekodiranje audia
+i prepoznavanje nota (basic-pitch/ONNX). Kvantizacija, razdvajanje ruku i izvoz dolaze
+kroz naredne taskove.
 
 ## Arhitektura pipeline-a
 ```
@@ -39,9 +39,22 @@ pyproject.toml    metapodaci i pinovane zavisnosti
 ```
 
 ## Zavisnosti
-Python **3.11+**. Python paketi (pinovani u `pyproject.toml`): basic-pitch (ONNX backend
+Python **3.11–3.13**. Python paketi (opsezi u `pyproject.toml`): basic-pitch (ONNX backend
 preko `onnxruntime`, umesto TensorFlow radi lakšeg pakovanja), librosa, pretty_midi,
 mido, music21, fastapi, uvicorn, python-multipart.
+
+### Zašto se basic-pitch instalira posebno
+`basic-pitch` u svojim metapodacima **tvrdo zahteva TensorFlow** (na Windows-u za
+Python ≥ 3.11) odnosno `tensorflow-macos` (na macOS-u za Python > 3.11) — iako mu za rad
+sa ONNX modelom TensorFlow uopšte ne treba (backend bira pri uvozu, `try/except`).
+Zato se instalira bez zavisnosti, a njegove stvarne runtime zavisnosti (numpy, scipy,
+librosa, pretty_midi, resampy, mir_eval) su navedene u `pyproject.toml`:
+
+```bash
+pip install --no-deps basic-pitch==0.4.0
+```
+
+Rezultat: isti model, ~500 MB manje instalacije, isto ponašanje na Mac-u i Windows-u.
 
 **Runtime zavisnost: `ffmpeg`** — mora biti u PATH-u za dekodiranje MP3/M4A snimaka.
 - macOS: `brew install ffmpeg`
@@ -51,25 +64,32 @@ mido, music21, fastapi, uvicorn, python-multipart.
 
 ### macOS / Linux
 ```bash
-python3.11 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
+pip install --no-deps basic-pitch==0.4.0
 ```
 
 ### Windows (PowerShell)
 ```powershell
-py -3.11 -m venv .venv
+py -3 -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -e .
+pip install --no-deps basic-pitch==0.4.0
 ```
 
 Cross-platform od starta — bez OS-specifičnih putanja (koristi se `pathlib`).
 
-### Provera scaffold-a
+### Provera
 ```bash
-python -c "import notemkr; print(notemkr.transcribe_file('samples/primer.mp3'))"
+python -c "
+import notemkr
+r = notemkr.transcribe_file('samples/melodija-test.mp3')
+print(r['status'], r['duration_sec'], 'nota:', len(r['right_hand']) + len(r['left_hand']))"
 ```
-Ispisuje stub rezultat-mapu (bez čitanja fajla i bez teških zavisnosti).
+
+Test snimak (`samples/melodija-test.mp3`) je generisan skriptom
+`python samples/make_sample.py` — kratak, sintetički, bez autorskih prava.
 
 ### Pokretanje web servera (health check)
 ```bash

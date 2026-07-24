@@ -9,6 +9,6 @@ from __future__ import annotations
 
 from .transcribe import transcribe_file
 
-__all__ = ["transcribe_file", "__version__"]
+__all__ = ["__version__", "transcribe_file"]
 
 __version__ = "0.1.0"
