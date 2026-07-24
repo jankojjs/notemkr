@@ -1,0 +1,114 @@
+name: Windows build (.exe)
+
+# Windows .exe se mora graditi NA Windows-u — PyInstaller ne radi cross-build, a
+# razvoj tece na Mac-u. Zato ovaj workflow i postoji: on je izvor .exe-a koji otac
+# preuzima. Rezultat je u "Artifacts" svakog run-a, a za tag `v*` i u Releases.
+#
+# Rucno pokretanje: Actions -> "Windows build (.exe)" -> "Run workflow".
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "packaging/**"
+      - "notemkr/**"
+      - "web/**"
+      - "pyproject.toml"
+      - ".github/workflows/build-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write # potrebno samo za pravljenje Release-a na tag
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Folder: brz start (nista se ne raspakuje pri pokretanju) — preporuceno.
+          - mode: onedir
+            onefile: ""
+            artifact: notemkr-windows
+          # Jedan fajl: lakse za slanje, ali se pri svakom pokretanju raspakuje u temp.
+          - mode: onefile
+            onefile: "1"
+            artifact: notemkr-windows-jedan-fajl
+
+    name: build (${{ matrix.mode }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # 3.11 namerno: najsiri izbor gotovih wheel-ova za onnxruntime/numba/llvmlite.
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instaliraj zavisnosti
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[build]"
+          # basic-pitch u metapodacima tvrdo trazi TensorFlow, a mi koristimo ONNX
+          # backend (onnxruntime je u pyproject.toml). Vidi README.
+          pip install --no-deps basic-pitch==0.4.0
+
+      - name: Proveri da TensorFlow NIJE instaliran
+        # Ako se TF ipak uvuce, paket naraste za ~500 MB i build vise nije ono sto testiramo.
+        run: |
+          python -c "import importlib.util, sys; sys.exit(1) if importlib.util.find_spec('tensorflow') else print('OK: nema TensorFlow-a')"
+
+      - name: Preuzmi staticki ffmpeg.exe
+        run: python packaging/fetch_ffmpeg.py --os windows
+
+      - name: PyInstaller
+        env:
+          NOTEMKR_ONEFILE: ${{ matrix.onefile }}
+        run: pyinstaller packaging/notemkr.spec --noconfirm --distpath dist --workpath build
+
+      - name: Provera paketa (offline smoke test)
+        # Pokrece se bez mreze do interneta se ne moze iskljuciti na runneru, ali ovo
+        # dokazuje da .exe starta, da nadje prilozeni ffmpeg i model, i da servira app.
+        shell: pwsh
+        run: python packaging/smoke_test.py --dist dist --mode ${{ matrix.mode }}
+
+      - name: Spakuj u ZIP
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path upload | Out-Null
+          Copy-Item README-WINDOWS.txt upload\
+          if ("${{ matrix.mode }}" -eq "onefile") {
+            Copy-Item dist\notemkr.exe upload\
+          } else {
+            Copy-Item -Recurse dist\notemkr upload\notemkr
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: upload/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: ZIP za Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: Compress-Archive -Path upload\* -DestinationPath ${{ matrix.artifact }}.zip
+
+      - name: Release (samo na tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact }}.zip
+          body: |
+            **notemkr za Windows** — MP3 u note, bez instalacije Python-a.
+
+            - `notemkr-windows.zip` — raspakuj i pokreni `notemkr\notemkr.exe` (preporuceno, startuje brzo)
+            - `notemkr-windows-jedan-fajl.zip` — jedan `notemkr.exe`, prvo pokretanje traje duze
+
+            Uputstvo je u `README-WINDOWS.txt` unutar arhive.

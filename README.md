@@ -9,7 +9,48 @@ ručnom "skidanju" pesama na sluh.
 ## Status
 Radi ceo put od MP3-a do nota u browseru: dekodiranje → prepoznavanje nota →
 tempo/kvantizacija/tonalitet → razdvajanje ruku → izvoz MIDI/MusicXML (+ PDF) →
-lokalni server sa drag-drop stranicom i prikazom partiture.
+lokalni server sa drag-drop stranicom i prikazom partiture. Spakovano za Windows
+(`.exe`, bez instalacije Python-a) i za Mac (`./run.sh`).
+
+## Za korisnika: Windows, bez instalacije
+
+Nije potreban Python, ffmpeg ni internet — sve je u paketu.
+
+1. **Preuzmi** poslednji `notemkr-windows.zip`:
+   *Releases* na GitHub-u, ili *Actions → „Windows build (.exe)" → poslednji uspešan
+   run → „Artifacts".
+2. **Raspakuj** ZIP (npr. na Desktop).
+3. **Dupli klik** na `notemkr\notemkr.exe`.
+4. Otvori se crni prozor, a odmah zatim i browser sa stranicom aplikacije.
+   **Crni prozor mora da ostane otvoren** dok aplikacija radi — zatvaranje prozora
+   je ujedno i gašenje aplikacije.
+5. Prevuci MP3 na stranicu → note.
+
+Uz ZIP ide i `README-WINDOWS.txt` sa istim uputstvom, napisan za nekoga ko nikada
+nije otvorio terminal (uključujući SmartScreen upozorenje pri prvom pokretanju).
+
+Dve varijante paketa:
+
+| paket | šta je | kada |
+| --- | --- | --- |
+| `notemkr-windows.zip` | folder sa `notemkr.exe` + `_internal\` | **preporučeno** — startuje odmah |
+| `notemkr-windows-jedan-fajl.zip` | jedan `notemkr.exe` (~190 MB) | lakše za slanje; svako pokretanje se raspakuje u temp, pa traje duže |
+
+U verziji sa folderom `notemkr.exe` se ne sme izvlačiti iz foldera — koristi fajlove
+pored sebe.
+
+## Za korisnika: macOS
+
+Na Mac-u nema `.exe`-a; koristi se skripta iz korena repoa:
+
+```bash
+./run.sh                 # prvi put napravi .venv i instalira zavisnosti (treba internet)
+./run.sh --port 8010     # drugi port
+```
+Svako sledeće pokretanje je trenutno i radi offline. Za pokretanje duplim klikom iz
+Finder-a: `cp run.sh run.command && chmod +x run.command`.
+
+Isto to ručno, ako `.venv` već postoji: `.venv/bin/python -m notemkr.launcher`.
 
 ## Arhitektura pipeline-a
 ```
@@ -49,13 +90,25 @@ notemkr/          Python paket
   export.py       izvoz MIDI / MusicXML / PDF
   cli.py          komandna linija (notemkr-transcribe)
   server.py       lokalni FastAPI web server (/transcribe, /download)
+  launcher.py     ulazna tačka spakovane aplikacije (port, browser, poruke)
+  runtime.py      gde su fajlovi — iz izvornog koda i iz .exe paketa
 web/              frontend (drag-drop upload, prikaz nota)
   index.html      stranica
   styles.css      izgled
   app.js          upload, praćenje obrade, prikaz partiture
   vendor/         OpenSheetMusicDisplay (lokalno, bez CDN-a)
+packaging/        pakovanje u .exe
+  notemkr.spec    PyInstaller recept (Windows + Mac, onedir/onefile)
+  notemkr_app.py  skripta koju PyInstaller pretvara u izvršni fajl
+  fetch_ffmpeg.py preuzimanje statičkog ffmpeg-a u vendor/
+  smoke_test.py   provera gotovog paketa (pokreni ga i propusti snimak)
+  build.sh        gradnja na Mac-u/Linux-u
+  build_windows.ps1  gradnja na Windows mašini
+.github/workflows/build-windows.yml   CI koji pravi .exe (jedini pravi izvor .exe-a)
 samples/          test snimci + generator test snimka
 jobs/             rezultati obrade po poslu (pravi se sam, van gita)
+run.sh            pokretanje na Mac-u/Linux-u (napravi .venv pri prvom pokretanju)
+README-WINDOWS.txt  uputstvo koje ide uz Windows ZIP
 pyproject.toml    metapodaci i zavisnosti
 ```
 
@@ -79,9 +132,15 @@ Rezultat: isti model, ~500 MB manje instalacije, isto ponašanje na Mac-u i Wind
 
 **Runtime zavisnost: `ffmpeg`** — mora biti u PATH-u za dekodiranje MP3/M4A snimaka.
 - macOS: `brew install ffmpeg`
-- Windows: `winget install Gyan.FFmpeg` (ili preuzmi sa ffmpeg.org i dodaj u PATH)
+- Windows: **ne treba ništa** — `ffmpeg.exe` je unutar `.exe` paketa (vidi
+  [Pakovanje](#pakovanje-kako-nastaje-exe)). Za rad iz izvornog koda:
+  `winget install Gyan.FFmpeg` (ili preuzmi sa ffmpeg.org i dodaj u PATH)
 
 ## Instalacija i pokretanje
+
+Za samo korišćenje aplikacije ovo nije potrebno: na Windows-u postoji gotov `.exe`,
+na Mac-u `./run.sh` (obe varijante su opisane gore). Ovde je ručna instalacija za
+rad na kodu.
 
 ### macOS / Linux
 ```bash
@@ -144,7 +203,8 @@ Test snimak (`samples/melodija-test.mp3`) je generisan skriptom
 
 ### Web (drag-drop u browseru)
 ```bash
-notemkr            # ili: python -m notemkr.server
+notemkr                          # ili: python -m notemkr.server
+python -m notemkr.launcher       # isto, ali kao spakovana verzija (sam nađe port)
 ```
 Server sluša na `http://127.0.0.1:8000/` i sam otvara browser (`--no-browser` da ne
 otvara). Opcije: `--host`, `--port`, `--jobs-dir`.
@@ -187,6 +247,67 @@ a napredak se prati preko `/status/{job_id}` — tako radi i sama stranica.
 
 Podešavanja kroz okruženje: `NOTEMKR_JOBS_DIR`, `NOTEMKR_MAX_UPLOAD_MB` (50),
 `NOTEMKR_MAX_JOBS` (20), `NOTEMKR_HOST`, `NOTEMKR_PORT`.
+
+## Pakovanje (kako nastaje .exe)
+
+Recept je `packaging/notemkr.spec` — isti fajl gradi i Windows i Mac verziju.
+Ulazna tačka paketa je `notemkr/launcher.py`: nađe slobodan port (ako je 8000
+zauzet), sačeka da server *stvarno* proradi pa tek onda otvori browser, i pri
+grešci zadrži prozor otvoren da se poruka pročita.
+
+### Windows .exe se gradi na Windows-u
+PyInstaller **ne radi cross-build**: `.exe` se ne može napraviti sa Mac-a. Zato je
+pravi izvor `.exe`-a GitHub Actions workflow `.github/workflows/build-windows.yml`
+(`windows-latest`, Python 3.11). On radi sve korake sam — instalira zavisnosti,
+proverava da TensorFlow *nije* ušao, preuzme statički `ffmpeg.exe`, pusti
+PyInstaller u oba režima (`onedir` i `onefile`), pokrene smoke test nad gotovim
+paketom i okači rezultat kao artifact. Na tag `v*` pravi i GitHub Release.
+
+Ručno pokretanje: *Actions → „Windows build (.exe)" → „Run workflow"*.
+
+Na samoj Windows mašini: `powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1`.
+
+### Mac / Linux
+```bash
+packaging/build.sh                    # dist/notemkr/  (folder)
+NOTEMKR_ONEFILE=1 packaging/build.sh  # dist/notemkr   (jedan fajl)
+```
+
+### Provera gotovog paketa
+```bash
+python packaging/smoke_test.py --dist dist --mode onedir
+```
+Pokreće spakovanu aplikaciju i propušta pravi snimak kroz nju: `/health` mora da
+javi da je `ffmpeg` nađen, `/` da posluži frontend, a `/transcribe` da vrati note.
+To je test prihvatanja nad *paketom*, a ne nad izvornim kodom.
+
+### Šta ulazi u paket i zašto
+| stavka | zašto |
+| --- | --- |
+| `web/` (sa vendorovanim OSMD-om) | stranica i prikaz nota rade bez CDN-a |
+| `basic_pitch/saved_models/.../nmp.onnx` | model uz aplikaciju — inače bi trebao internet |
+| `onnxruntime` | jedini backend koji basic-pitch ovde koristi |
+| `music21`, `librosa`, `resampy`, `mir_eval` | nose svoje data fajlove pored `.py`-a |
+| `bin/ffmpeg[.exe]` | dekodiranje MP3-a na mašini koja nema ffmpeg |
+| ~~TensorFlow~~ | **isključen**: basic-pitch ga traži u metapodacima, a nikad ga ne uveze uz ONNX backend (uštedi ~500 MB) |
+
+`ffmpeg` se ne drži u gitu — preuzima ga `packaging/fetch_ffmpeg.py` u
+`packaging/vendor/<os>/`. To je jedini korak kome treba internet, i to samo pri
+gradnji. Za Windows se uzima **statički LGPL** build (BtbN, tag `latest`; gyan.dev
+kao rezerva jer ume da vrati 503) — LGPL varijanta nema GPL-only delove koji nam za
+dekodiranje MP3-a ionako ne trebaju, pa je deljenje gotovog paketa jednostavnije.
+
+### Gde aplikacija piše
+Spakovana aplikacija ne piše pored `.exe`-a (tamo često nema prava), nego u
+korisnički folder: `%LOCALAPPDATA%\notemkr\jobs` na Windows-u,
+`~/Library/Application Support/notemkr/jobs` na Mac-u. Iz izvornog koda ostaje
+`jobs/` u korenu repoa, kao i do sada. Sve to rešava `notemkr/runtime.py` — nijedan
+modul ne sme da računa putanje preko `__file__`, jer u paketu tih foldera nema.
+
+### Offline
+Provereno: sa praznim PATH-om (bez sistemskog `ffmpeg`-a) i bez izlaza na internet,
+spakovana aplikacija podigne server, posluži stranicu i iz `samples/melodija-test.mp3`
+izvuče note (120.19 BPM, G major) — isto kao iz izvornog koda.
 
 ## Razvoj
 ```bash

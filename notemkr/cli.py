@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from .export import export_all, find_musescore
+from .runtime import prepare_runtime
 from .split_hands import DEFAULT_SPLIT_PITCH, HandSplitParams
 from .transcribe import TranscriptionParams, transcribe_file
 
@@ -52,6 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    prepare_runtime()  # nadji prilozeni ffmpeg ako radimo iz spakovane verzije
     args = build_parser().parse_args(argv)
 
     params = TranscriptionParams(

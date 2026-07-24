@@ -5,6 +5,8 @@ __pycache__/
 .eggs/
 build/
 dist/
+build-onefile/
+dist-onefile/
 .venv/
 venv/
 env/
@@ -24,3 +26,7 @@ outputs/
 
 # Models / large assets downloaded at runtime
 *.onnx
+
+# Packaging: preuzeti ffmpeg i pripremljeni ZIP-ovi (prave se pri gradnji)
+packaging/vendor/
+upload/
