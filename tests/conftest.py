@@ -30,6 +30,12 @@ requires_sample = pytest.mark.skipif(
     reason=f"nedostaje test snimak: {SAMPLE_MP3}",
 )
 
+# Testovi web sloja traze fastapi + httpx (TestClient) i python-multipart za upload.
+requires_web_stack = pytest.mark.skipif(
+    not all(_module_available(name) for name in ("fastapi", "httpx", "multipart")),
+    reason='web stack nije instaliran (pip install -e ".[dev]")',
+)
+
 
 @pytest.fixture(scope="session")
 def sample_mp3() -> Path:
