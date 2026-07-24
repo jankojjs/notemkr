@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+
+# App runtime output
+jobs/
+outputs/
+*.mid
+*.musicxml
+*.pdf
+
+# Models / large assets downloaded at runtime
+*.onnx
