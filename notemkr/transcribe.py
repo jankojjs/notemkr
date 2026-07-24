@@ -16,6 +16,14 @@ from typing import Any
 
 from .audio import is_silent, load_audio
 from .notes import Note, make_note, sort_notes, velocity_from_amplitude
+from .quantize import (
+    DEFAULT_BEATS_PER_BAR,
+    DEFAULT_GRID,
+    analyze_rhythm,
+    estimate_key,
+    quantize_notes,
+    snap_to_scale,
+)
 
 # --- Podrazumevani parametri modela --------------------------------------------------
 # basic-pitch podrazumevano koristi 0.5 / 0.3; za harmoniku (kontinuiran, "trskast"
@@ -48,8 +56,9 @@ class TranscriptionError(RuntimeError):
 
 @dataclass(slots=True)
 class TranscriptionParams:
-    """Parametri prepoznavanja nota; svi imaju razumne podrazumevane vrednosti."""
+    """Parametri pipeline-a; svi imaju razumne podrazumevane vrednosti."""
 
+    # Prepoznavanje nota (Task 2)
     onset_threshold: float = DEFAULT_ONSET_THRESHOLD
     frame_threshold: float = DEFAULT_FRAME_THRESHOLD
     min_note_length_ms: float = DEFAULT_MIN_NOTE_LENGTH_MS
@@ -57,6 +66,12 @@ class TranscriptionParams:
     max_pitch: int = ACCORDION_MAX_PITCH
     min_confidence: float = DEFAULT_MIN_CONFIDENCE
     drop_harmonic_ghosts: bool = True
+
+    # Ritam i tonalitet (Task 3)
+    grid: int = DEFAULT_GRID  # 8 = osmina, 16 = sesnaestina
+    beats_per_bar: int = DEFAULT_BEATS_PER_BAR
+    quantize: bool = True
+    snap_to_scale: bool = False  # izbaci vanlestvicne note niske pouzdanosti
 
 
 @dataclass(slots=True)
@@ -68,6 +83,8 @@ class RawTranscription:
     midi: Any  # sirovi `pretty_midi.PrettyMIDI` iz basic-pitch-a, pre ciscenja
     duration_sec: float
     warnings: list[str] = field(default_factory=list)
+    samples: Any = None  # dekodiran mono signal (koristi ga analiza tempa)
+    sample_rate: int = 0
 
     def to_pretty_midi(self, tempo_bpm: float = 120.0, program: int = 21) -> Any:
         """Napravi jednostazni `PrettyMIDI` od ociscenih nota.
@@ -205,7 +222,7 @@ def extract_notes(
     duration_sec = round(len(samples) / float(sample_rate), 3)
     if is_silent(samples):
         warnings.append("Snimak je prakticno tisina — nema sta da se transkribuje.")
-        return RawTranscription(src, [], None, duration_sec, warnings)
+        return RawTranscription(src, [], None, duration_sec, warnings, samples, sample_rate)
 
     predict, model_path = _load_basic_pitch()
     try:
@@ -238,6 +255,8 @@ def extract_notes(
         midi=midi_data,
         duration_sec=duration_sec,
         warnings=warnings,
+        samples=samples,
+        sample_rate=sample_rate,
     )
 
 
@@ -252,41 +271,69 @@ def transcribe_file(path: str | Path, params: TranscriptionParams | None = None)
         Rezultat-mapa fiksne seme:
 
         {
-            "source": str,           # putanja ulaznog fajla
-            "status": str,           # "ok" | "error"
-            "duration_sec": float,   # trajanje audia
-            "tempo_bpm": float|None, # procenjeni tempo (Task 3)
-            "key": str|None,         # procenjeni tonalitet (Task 3)
-            "right_hand": [Note],    # note desne ruke (melodija)
-            "left_hand": [Note],     # note leve ruke (bas/akordi)
-            "warnings": [str, ...],  # poruke za korisnika
+            "source": str,             # putanja ulaznog fajla
+            "status": str,             # "ok" | "error"
+            "duration_sec": float,     # trajanje audia
+            "tempo_bpm": float|None,   # procenjeni tempo
+            "key": str|None,           # procenjeni tonalitet, npr. "G major"
+            "time_signature": str,     # taktomer, podrazumevano "4/4"
+            "right_hand": [Note],      # note desne ruke (melodija)
+            "left_hand": [Note],       # note leve ruke (bas/akordi)
+            "warnings": [str, ...],    # poruke za korisnika
         }
     """
+    params = params or TranscriptionParams()
     source = str(Path(path))
     try:
         raw = extract_notes(path, params)
     except Exception as exc:
-        return {
-            "source": source,
-            "status": "error",
-            "duration_sec": 0.0,
-            "tempo_bpm": None,
-            "key": None,
-            "right_hand": [],
-            "left_hand": [],
-            "warnings": [str(exc)],
-        }
+        return _empty_result(source, params, warnings=[str(exc)], status="error")
 
     warnings = list(raw.warnings)
+    if not raw.notes:
+        return _empty_result(source, params, warnings, duration_sec=raw.duration_sec)
+
+    # Tempo i mreza doba iz istog signala koji je vec dekodiran za transkripciju.
+    rhythm = analyze_rhythm(raw.samples, raw.sample_rate, params.beats_per_bar)
+    warnings.extend(rhythm.warnings)
+
+    notes = quantize_notes(raw.notes, rhythm, params.grid) if params.quantize else raw.notes
+
+    key = estimate_key(notes)
+    if key is not None and params.snap_to_scale:
+        notes = snap_to_scale(notes, key)
+
     warnings.append("Razdvajanje leve i desne ruke jos nije povezano (Task 4).")
 
     return {
         "source": source,
         "status": "ok",
         "duration_sec": raw.duration_sec,
-        "tempo_bpm": None,
-        "key": None,
-        "right_hand": raw.notes,
+        "tempo_bpm": rhythm.tempo_bpm,
+        "key": key.name if key else None,
+        "time_signature": f"{params.beats_per_bar}/4",
+        "right_hand": notes,
         "left_hand": [],
         "warnings": warnings,
+    }
+
+
+def _empty_result(
+    source: str,
+    params: TranscriptionParams,
+    warnings: list[str],
+    status: str = "ok",
+    duration_sec: float = 0.0,
+) -> dict[str, Any]:
+    """Rezultat-mapa bez nota (greska ili tisina) — ista sema kao i uspesan prolaz."""
+    return {
+        "source": source,
+        "status": status,
+        "duration_sec": duration_sec,
+        "tempo_bpm": None,
+        "key": None,
+        "time_signature": f"{params.beats_per_bar}/4",
+        "right_hand": [],
+        "left_hand": [],
+        "warnings": list(warnings),
     }
