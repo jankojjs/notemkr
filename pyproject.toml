@@ -45,6 +45,7 @@ dev = [
 
 [project.scripts]
 notemkr = "notemkr.server:main"
+notemkr-transcribe = "notemkr.cli:main"
 
 [project.urls]
 Homepage = "https://example.invalid/notemkr"
