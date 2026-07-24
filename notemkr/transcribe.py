@@ -24,6 +24,7 @@ from .quantize import (
     quantize_notes,
     snap_to_scale,
 )
+from .split_hands import HandSplitParams, split_hands
 
 # --- Podrazumevani parametri modela --------------------------------------------------
 # basic-pitch podrazumevano koristi 0.5 / 0.3; za harmoniku (kontinuiran, "trskast"
@@ -72,6 +73,9 @@ class TranscriptionParams:
     beats_per_bar: int = DEFAULT_BEATS_PER_BAR
     quantize: bool = True
     snap_to_scale: bool = False  # izbaci vanlestvicne note niske pouzdanosti
+
+    # Razdvajanje ruku (Task 4)
+    hands: HandSplitParams = field(default_factory=HandSplitParams)
 
 
 @dataclass(slots=True)
@@ -303,7 +307,11 @@ def transcribe_file(path: str | Path, params: TranscriptionParams | None = None)
     if key is not None and params.snap_to_scale:
         notes = snap_to_scale(notes, key)
 
-    warnings.append("Razdvajanje leve i desne ruke jos nije povezano (Task 4).")
+    right_hand, left_hand = split_hands(notes, params.hands)
+    if not left_hand:
+        warnings.append("Nije prepoznata leva ruka — sve note su u opsegu desne.")
+    if not right_hand:
+        warnings.append("Nije prepoznata melodija u opsegu desne ruke.")
 
     return {
         "source": source,
@@ -312,8 +320,8 @@ def transcribe_file(path: str | Path, params: TranscriptionParams | None = None)
         "tempo_bpm": rhythm.tempo_bpm,
         "key": key.name if key else None,
         "time_signature": f"{params.beats_per_bar}/4",
-        "right_hand": notes,
-        "left_hand": [],
+        "right_hand": right_hand,
+        "left_hand": left_hand,
         "warnings": warnings,
     }
 
