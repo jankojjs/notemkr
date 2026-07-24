@@ -12,28 +12,40 @@ license = { text = "MIT" }
 authors = [{ name = "notemkr" }]
 keywords = ["accordion", "harmonika", "transcription", "midi", "musicxml", "basic-pitch"]
 
-# Zavisnosti su pinovane radi reproducibilnosti na Mac i Windows (Python 3.11+).
-# basic-pitch koristi ONNX backend (onnxruntime) umesto TensorFlow radi lakseg pakovanja.
+# Opsezi (a ne tacni pinovi) jer paket mora da se instalira na Python 3.11-3.13,
+# na Mac-u i na Windows-u; tacni pinovi za 3.11 nemaju wheel-ove za 3.13.
+#
+# `basic-pitch` NAMERNO nije ovde: njegovi metapodaci tvrdo zahtevaju TensorFlow
+# (Windows/py>=3.11) odnosno tensorflow-macos (macOS/py>3.11), sto je suprotno
+# zahtevu "samo onnxruntime". U kodu koristi ONNX backend i tada mu TF ne treba,
+# pa se instalira posebno, bez zavisnosti (vidi README):
+#     pip install --no-deps basic-pitch==0.4.0
+# Zbog toga su ovde navedene i prave runtime zavisnosti basic-pitch-a
+# (numpy, scipy, resampy, mir_eval, librosa, pretty_midi).
 dependencies = [
-    "basic-pitch==0.4.0",
-    "onnxruntime==1.17.3",
-    "librosa==0.10.2.post1",
-    "pretty_midi==0.2.10",
-    "mido==1.3.2",
-    "music21==9.1.0",
-    "fastapi==0.111.0",
-    "uvicorn==0.30.1",
-    "python-multipart==0.0.9",
+    "onnxruntime>=1.20,<2",
+    "librosa>=0.10.2,<0.12",
+    "numpy>=1.26,<3",
+    "scipy>=1.11,<2",
+    "resampy==0.4.2",           # basic-pitch zahteva <0.4.3
+    "mir_eval>=0.7,<0.9",
+    "pretty_midi>=0.2.11,<0.3", # 0.2.10 puca na py3.12+ (koristi pkg_resources)
+    "mido>=1.3,<2",
+    "music21>=9.1,<10",
+    "fastapi>=0.111,<1",
+    "uvicorn>=0.30,<1",
+    "python-multipart>=0.0.9,<1",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest==8.2.2",
-    "ruff==0.5.0",
+    "pytest>=8.2,<9",
+    "ruff>=0.5,<1",
 ]
 
 [project.scripts]
 notemkr = "notemkr.server:main"
+notemkr-transcribe = "notemkr.cli:main"
 
 [project.urls]
 Homepage = "https://example.invalid/notemkr"
@@ -44,3 +56,10 @@ packages = ["notemkr"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+# Eksplicitan izbor pravila, da lint bude isti bez obzira na verziju ruff-a.
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
