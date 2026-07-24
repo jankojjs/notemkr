@@ -27,7 +27,10 @@ dependencies = [
     "librosa>=0.10.2,<0.12",
     "numpy>=1.26,<3",
     "scipy>=1.11,<2",
-    "resampy==0.4.2",           # basic-pitch zahteva <0.4.3
+    # 0.4.2 na uvozu trazi `pkg_resources`, kojeg u praznom Python 3.13 venv-u
+    # (setuptools >= 81) vise nema — 0.4.3 ga je izbacio. basic-pitch u metapodacima
+    # trazi <0.4.3, ali se instalira sa --no-deps pa to ogranicenje ionako ne vazi.
+    "resampy>=0.4.3,<0.5",
     "mir_eval>=0.7,<0.9",
     "pretty_midi>=0.2.11,<0.3", # 0.2.10 puca na py3.12+ (koristi pkg_resources)
     "mido>=1.3,<2",
@@ -41,6 +44,7 @@ dependencies = [
 dev = [
     "pytest>=8.2,<9",
     "ruff>=0.5,<1",
+    "httpx>=0.27,<1",  # fastapi.testclient (TestClient) ga zahteva
 ]
 
 [project.scripts]

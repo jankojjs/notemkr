@@ -1,0 +1,383 @@
+/* notemkr — vizuelni jezik je uzet iz same harmonike:
+   sedefasta bela dugmadi, bordo lak korpusa i mesingana rešetka.
+   Nosivi element je "meh" (bellows): zona za ispuštanje snimka je naborana kao
+   meh i diše dok traje obrada. Sve ostalo je namerno tiho.
+   Fontovi su sistemski (nema CDN-a) — aplikacija mora da radi bez interneta. */
+
+:root {
+  --sedef: #f1eef4;
+  --sedef-papir: #fbfafc;
+  --lak: #7a1220;
+  --lak-jak: #a3182b;
+  --mesing: #b3892a;
+  --grafit: #1b1a22;
+  --siva: #6b6874;
+  --linija: #d9d4de;
+  --senka: 0 1px 2px rgba(27, 26, 34, .06), 0 8px 24px -12px rgba(27, 26, 34, .28);
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --sans: ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+
+  --sirina: 60rem;
+  --radijus: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sedef: #17161c;
+    --sedef-papir: #201f28;
+    --lak: #c2455a;
+    --lak-jak: #d9637a;
+    --mesing: #d7ad4a;
+    --grafit: #ece9f2;
+    --siva: #9c98a8;
+    --linija: #322f3c;
+    --senka: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .7);
+  }
+}
+
+* { box-sizing: border-box; }
+
+/* Klase ispod postavljaju `display`, pa bi nadjacale podrazumevano ponasanje
+   `hidden` atributa — a njime se pale i gase koraci u toku rada. */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  padding: clamp(1.5rem, 4vw, 3rem) 1.25rem 3rem;
+  background: var(--sedef);
+  color: var(--grafit);
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+main, .zaglavlje, .podnozje { max-width: var(--sirina); margin-inline: auto; }
+
+/* --- zaglavlje --------------------------------------------------------------- */
+
+.zaglavlje { margin-bottom: clamp(1.75rem, 4vw, 2.75rem); }
+
+.nadnaslov {
+  margin: 0 0 .75rem;
+  font-family: var(--mono);
+  font-size: .7rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--mesing);
+}
+
+.logo {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(2.6rem, 8vw, 4rem);
+  font-weight: 400;
+  letter-spacing: -.03em;
+  line-height: 1;
+  color: var(--lak);
+}
+
+.podnaslov {
+  margin: .85rem 0 0;
+  max-width: 34rem;
+  font-size: 1.05rem;
+  color: var(--siva);
+}
+
+/* --- meh (drag-drop zona) ---------------------------------------------------- */
+
+.korak + .korak, .korak + .napredno, .napredno + .korak { margin-top: 1.5rem; }
+
+.meh {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 15rem;
+  padding: 2.5rem 1.5rem;
+  border: 1px solid var(--linija);
+  border-radius: var(--radijus);
+  background: var(--sedef-papir);
+  box-shadow: var(--senka);
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+/* Nabori meha: tanka senka + svetli greben, ponovljeni pod uglom. */
+.meh-pleteri {
+  position: absolute;
+  inset: -10% -6%;
+  background-image: repeating-linear-gradient(
+    100deg,
+    rgba(27, 26, 34, .11) 0 1px,
+    rgba(255, 255, 255, .55) 1px 3px,
+    transparent 3px 26px
+  );
+  transform-origin: center;
+  transition: transform .5s ease;
+}
+
+@media (prefers-color-scheme: dark) {
+  .meh-pleteri {
+    background-image: repeating-linear-gradient(
+      100deg,
+      rgba(0, 0, 0, .5) 0 1px,
+      rgba(255, 255, 255, .07) 1px 3px,
+      transparent 3px 26px
+    );
+  }
+}
+
+.meh-tekst { position: relative; display: block; }
+
+.meh-naslov {
+  display: block;
+  font-family: var(--serif);
+  font-size: clamp(1.5rem, 3.6vw, 2.1rem);
+  letter-spacing: -.01em;
+}
+
+.meh-podnaslov { display: block; margin-top: .4rem; color: var(--siva); }
+
+.meh:hover { border-color: var(--lak); }
+.meh:hover .meh-pleteri { transform: scaleX(.97); }
+.meh:focus-visible { outline: 3px solid var(--mesing); outline-offset: 3px; }
+
+/* Meh se skuplja kada snimak lebdi iznad njega. */
+.meh.uvuci {
+  border-color: var(--lak);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--lak) 18%, transparent), var(--senka);
+}
+.meh.uvuci .meh-pleteri { transform: scaleX(.88); }
+
+.napomena { margin: .8rem .25rem 0; font-size: .875rem; color: var(--siva); }
+
+/* --- napredna podešavanja ---------------------------------------------------- */
+
+.napredno {
+  border: 1px solid var(--linija);
+  border-radius: var(--radijus);
+  background: var(--sedef-papir);
+}
+
+.napredno > summary {
+  padding: .85rem 1.1rem;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: .78rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--siva);
+}
+
+.napredno > summary:focus-visible { outline: 3px solid var(--mesing); outline-offset: -3px; }
+.napredno[open] > summary { border-bottom: 1px solid var(--linija); color: var(--grafit); }
+
+.polja {
+  display: grid;
+  gap: 1.4rem;
+  padding: 1.25rem 1.1rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.polje { display: grid; gap: .4rem; align-content: start; }
+.oznaka { font-weight: 600; font-size: .95rem; }
+.opis { font-size: .82rem; color: var(--siva); }
+
+.polje select, .polje input[type="range"] { width: 100%; accent-color: var(--lak); }
+
+.polje select {
+  padding: .5rem .6rem;
+  border: 1px solid var(--linija);
+  border-radius: 8px;
+  background: var(--sedef);
+  color: inherit;
+  font: inherit;
+}
+
+.polje--prekidac {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: .6rem;
+}
+.polje--prekidac input { width: 1.15rem; height: 1.15rem; accent-color: var(--lak); }
+.polje--prekidac .opis { grid-column: 2; }
+
+output#split-prikaz { font-family: var(--mono); font-size: .85rem; color: var(--siva); }
+
+/* --- obrada ------------------------------------------------------------------ */
+
+.obrada {
+  padding: 1.5rem;
+  border: 1px solid var(--linija);
+  border-radius: var(--radijus);
+  background: var(--sedef-papir);
+  box-shadow: var(--senka);
+}
+
+.obrada-fajl { margin: 0 0 .35rem; font-family: var(--mono); font-size: .8rem; color: var(--siva); }
+.obrada-faza { margin: 0 0 1rem; font-family: var(--serif); font-size: 1.35rem; }
+
+.traka { height: 8px; border-radius: 99px; background: var(--linija); overflow: hidden; }
+
+.traka-punjenje {
+  display: block;
+  width: 4%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--lak), var(--mesing));
+  transition: width .6s ease;
+}
+
+/* Dok traje obrada, meh diše. */
+body.radi .meh { pointer-events: none; opacity: .75; }
+body.radi .meh-pleteri { animation: disanje 2.6s ease-in-out infinite; }
+
+@keyframes disanje {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(.9); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meh-pleteri, .traka-punjenje { transition: none; animation: none !important; }
+}
+
+/* --- greška ------------------------------------------------------------------ */
+
+.greska {
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--lak);
+  border-left-width: 4px;
+  border-radius: var(--radijus);
+  background: var(--sedef-papir);
+}
+
+.greska h2 { margin: 0 0 .35rem; font-family: var(--serif); font-size: 1.25rem; color: var(--lak); }
+.greska p { margin: 0 0 1rem; white-space: pre-wrap; }
+
+/* --- rezultat ---------------------------------------------------------------- */
+
+.ocitavanje {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  border: 1px solid var(--linija);
+  border-radius: var(--radijus);
+  background: var(--sedef-papir);
+  overflow: hidden;
+}
+
+/* Pregrade su na samim stavkama (a ne razmaci u mrezi), da prazno mesto u
+   prelomljenom redu ne ostane kao siva rupa. */
+.ocitavanje-stavka { padding: .9rem 1.1rem; border-left: 1px solid var(--linija); }
+.ocitavanje-stavka:first-child { border-left: 0; }
+
+.ocitavanje-oznaka {
+  display: block;
+  font-family: var(--mono);
+  font-size: .68rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--siva);
+}
+
+.ocitavanje-stavka strong {
+  display: block;
+  margin-top: .2rem;
+  font-family: var(--mono);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.akcije { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.25rem; }
+
+.dugme {
+  display: inline-block;
+  padding: .6rem 1.1rem;
+  border: 1px solid var(--lak);
+  border-radius: 999px;
+  background: var(--lak);
+  color: #fff;
+  font: inherit;
+  font-size: .95rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.dugme:hover { background: var(--lak-jak); border-color: var(--lak-jak); }
+.dugme:focus-visible { outline: 3px solid var(--mesing); outline-offset: 2px; }
+
+.dugme--tiho { background: transparent; color: var(--lak); border-color: var(--linija); }
+.dugme--tiho:hover { background: transparent; border-color: var(--lak); color: var(--lak-jak); }
+
+.upozorenja {
+  margin: 1.25rem 0 0;
+  padding: .9rem 1.1rem .9rem 2.2rem;
+  border-left: 3px solid var(--mesing);
+  background: var(--sedef-papir);
+  border-radius: 0 8px 8px 0;
+  font-size: .9rem;
+  color: var(--siva);
+}
+
+.upozorenja li + li { margin-top: .35rem; }
+
+/* --- partitura --------------------------------------------------------------- */
+
+.partitura { margin-top: 1.5rem; }
+
+.partitura-alat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .6rem;
+}
+
+.partitura-naslov {
+  font-family: var(--mono);
+  font-size: .7rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--siva);
+}
+
+.zum { display: inline-flex; align-items: center; gap: .35rem; }
+
+.zum button {
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--linija);
+  border-radius: 50%;
+  background: var(--sedef-papir);
+  color: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.zum button:hover { border-color: var(--lak); color: var(--lak); }
+.zum button:focus-visible { outline: 3px solid var(--mesing); outline-offset: 2px; }
+.zum output { min-width: 3.2rem; text-align: center; font-family: var(--mono); font-size: .8rem; color: var(--siva); }
+
+/* Notni papir je uvek beo — note se čitaju na papiru, i u tamnoj temi. */
+.papir {
+  padding: 1.25rem;
+  border: 1px solid var(--linija);
+  border-radius: var(--radijus);
+  background: #fff;
+  box-shadow: var(--senka);
+  overflow-x: auto;
+}
+
+#notni-list { min-height: 8rem; }
+#notni-list svg { max-width: 100%; }
+
+/* --- podnožje ---------------------------------------------------------------- */
+
+.podnozje { margin-top: 3rem; font-size: .82rem; color: var(--siva); }
+.podnozje p { margin: 0; }

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>notemkr — od snimka do nota</title>
+<!-- Ikonica je ugradjena (data URI): nema poziva ka mrezi, radi i offline. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237a1220'/%3E%3Cg stroke='%23f1eef4' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M9 7v18'/%3E%3Cpath d='M14 9v14'/%3E%3Cpath d='M19 9v14'/%3E%3Cpath d='M24 7v18'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="zaglavlje">
+  <p class="nadnaslov">Radi lokalno · snimak ne napušta ovaj računar</p>
+  <h1 class="logo">notemkr</h1>
+  <p class="podnaslov">Prevuci snimak i dobij note za harmoniku — desna ruka melodija, leva bas i akordi.</p>
+</header>
+
+<main>
+
+  <!-- Meh: ovde se ispušta snimak, i isti meh se "diše" dok traje obrada. -->
+  <section class="korak">
+    <button type="button" id="zona" class="meh" aria-describedby="zona-pomoc">
+      <span class="meh-pleteri" aria-hidden="true"></span>
+      <span class="meh-tekst">
+        <span class="meh-naslov">Prevuci MP3 ovde</span>
+        <span class="meh-podnaslov" id="zona-pomoc">ili klikni i izaberi snimak sa računara</span>
+      </span>
+    </button>
+    <input type="file" id="fajl" accept=".mp3,.wav,.m4a,.flac,.ogg,.aac,.aif,.aiff,audio/*" hidden>
+    <p class="napomena">Podržano: MP3, WAV, M4A, FLAC. Najbolje prolaze čisti snimci jedne harmonike.</p>
+  </section>
+
+  <details class="napredno">
+    <summary>Napredna podešavanja</summary>
+    <div class="polja">
+      <label class="polje">
+        <span class="oznaka">Najsitnija nota</span>
+        <select id="grid">
+          <option value="4">četvrtina</option>
+          <option value="8" selected>osmina</option>
+          <option value="16">šesnaestina</option>
+        </select>
+        <span class="opis">Sitnija podela hvata brže pasaže, ali i više šuma.</span>
+      </label>
+
+      <label class="polje">
+        <span class="oznaka">Granica ruku <output id="split-prikaz">C4 (60)</output></span>
+        <input type="range" id="split_pitch" min="48" max="72" step="1" value="60">
+        <span class="opis">Note iznad granice idu u desnu ruku, ispod u levu.</span>
+      </label>
+
+      <label class="polje polje--prekidac">
+        <input type="checkbox" id="monophonic">
+        <span class="oznaka">Desna ruka kao jedna melodija</span>
+        <span class="opis">Bez preklapanja tonova — čistiji notni zapis melodije.</span>
+      </label>
+
+      <label class="polje polje--prekidac">
+        <input type="checkbox" id="pdf" checked>
+        <span class="oznaka">Napravi i PDF</span>
+        <span class="opis">Radi samo ako je MuseScore instaliran; inače se preskače.</span>
+      </label>
+    </div>
+  </details>
+
+  <section id="obrada" class="korak obrada" hidden aria-live="polite">
+    <p class="obrada-fajl" id="obrada-fajl"></p>
+    <p class="obrada-faza" id="obrada-faza">Šaljem snimak…</p>
+    <div class="traka"><span class="traka-punjenje" id="traka-punjenje"></span></div>
+    <p class="napomena">Prvi snimak traje najduže — model se tada učitava.</p>
+  </section>
+
+  <section id="greska" class="korak greska" hidden role="alert">
+    <h2>Nije uspelo</h2>
+    <p id="greska-tekst"></p>
+    <button type="button" class="dugme dugme--tiho" data-ponovo>Probaj drugi snimak</button>
+  </section>
+
+  <section id="rezultat" class="korak rezultat" hidden>
+    <div class="ocitavanje">
+      <div class="ocitavanje-stavka"><span class="ocitavanje-oznaka">Tempo</span><strong id="tempo">—</strong></div>
+      <div class="ocitavanje-stavka"><span class="ocitavanje-oznaka">Tonalitet</span><strong id="tonalitet">—</strong></div>
+      <div class="ocitavanje-stavka"><span class="ocitavanje-oznaka">Takt</span><strong id="takt">—</strong></div>
+      <div class="ocitavanje-stavka"><span class="ocitavanje-oznaka">Note</span><strong id="note">—</strong></div>
+    </div>
+
+    <div class="akcije">
+      <a class="dugme" id="preuzmi-midi" download>Preuzmi MIDI</a>
+      <a class="dugme" id="preuzmi-musicxml" download>Preuzmi MusicXML</a>
+      <a class="dugme" id="preuzmi-pdf" download hidden>Preuzmi PDF</a>
+      <button type="button" class="dugme dugme--tiho" data-ponovo>Novi snimak</button>
+    </div>
+
+    <ul class="upozorenja" id="upozorenja" hidden></ul>
+
+    <div class="partitura">
+      <div class="partitura-alat">
+        <span class="partitura-naslov">Note</span>
+        <span class="zum">
+          <button type="button" id="zum-manje" aria-label="Umanji note">−</button>
+          <output id="zum-prikaz">100%</output>
+          <button type="button" id="zum-vise" aria-label="Uvećaj note">+</button>
+        </span>
+      </div>
+      <div class="papir"><div id="notni-list"></div></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="podnozje">
+  <p>notemkr — pomoć pri skidanju pesama na sluh. Rezultat je nacrt, ne savršena transkripcija.</p>
+</footer>
+
+<script src="vendor/opensheetmusicdisplay.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

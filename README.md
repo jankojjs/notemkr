@@ -7,9 +7,9 @@ ručnom "skidanju" pesama na sluh.
 > Ovo je **pomoć/nacrt**, ne savršena transkripcija. Polifonija i brzi pasaži su najteži.
 
 ## Status
-Pipeline radi od MP3-a do notnog zapisa: dekodiranje → prepoznavanje nota →
-tempo/kvantizacija/tonalitet → razdvajanje ruku → izvoz MIDI/MusicXML (+ PDF).
-Preostaje web sloj (drag-drop upload i prikaz u browseru).
+Radi ceo put od MP3-a do nota u browseru: dekodiranje → prepoznavanje nota →
+tempo/kvantizacija/tonalitet → razdvajanje ruku → izvoz MIDI/MusicXML (+ PDF) →
+lokalni server sa drag-drop stranicom i prikazom partiture.
 
 ## Arhitektura pipeline-a
 ```
@@ -48,9 +48,14 @@ notemkr/          Python paket
   split_hands.py  razdvajanje leve i desne ruke
   export.py       izvoz MIDI / MusicXML / PDF
   cli.py          komandna linija (notemkr-transcribe)
-  server.py       lokalni FastAPI web server
+  server.py       lokalni FastAPI web server (/transcribe, /download)
 web/              frontend (drag-drop upload, prikaz nota)
+  index.html      stranica
+  styles.css      izgled
+  app.js          upload, praćenje obrade, prikaz partiture
+  vendor/         OpenSheetMusicDisplay (lokalno, bez CDN-a)
 samples/          test snimci + generator test snimka
+jobs/             rezultati obrade po poslu (pravi se sam, van gita)
 pyproject.toml    metapodaci i zavisnosti
 ```
 
@@ -137,11 +142,51 @@ Test snimak (`samples/melodija-test.mp3`) je generisan skriptom
 - **`.pdf`** — opciono, preko MuseScore CLI. Ako MuseScore nije nađen, korak se
   preskače bez greške; putanju možeš zadati kroz `MUSESCORE_PATH`.
 
-### Pokretanje web servera (health check)
+### Web (drag-drop u browseru)
 ```bash
 notemkr            # ili: python -m notemkr.server
-# zatim otvori http://127.0.0.1:8000/health
 ```
+Server sluša na `http://127.0.0.1:8000/` i sam otvara browser (`--no-browser` da ne
+otvara). Opcije: `--host`, `--port`, `--jobs-dir`.
+
+Na stranici prevučeš snimak (ili klikneš i izabereš ga), vidiš napredak, a zatim
+tempo, tonalitet, note u browseru i dugmad za preuzimanje MIDI/MusicXML/PDF-a.
+Note crta **OpenSheetMusicDisplay**, koji stoji lokalno u `web/vendor/` — bez CDN-a,
+pa stranica radi i bez interneta.
+
+Sve je lokalno: server sluša samo na `127.0.0.1`, snimak se obradi na tvom računaru
+i nigde se ne šalje. Rezultati stoje u `jobs/<job_id>/` i brišu se pri sledećem
+pokretanju servera (i kad se nakupi više od `NOTEMKR_MAX_JOBS` poslova).
+
+#### API
+| ruta | šta radi |
+| --- | --- |
+| `POST /transcribe` | multipart upload (`file`) → pokreće pipeline, vraća JSON |
+| `GET /status/{job_id}` | stanje posla (`?musicxml=true` vraća i partituru) |
+| `GET /download/{job_id}/{tip}` | preuzimanje: `midi`, `musicxml`, `pdf` |
+| `GET /health` | provera servera (ima li `ffmpeg`, ima li MuseScore) |
+
+```bash
+curl -F file=@samples/melodija-test.mp3 http://127.0.0.1:8000/transcribe
+```
+```json
+{
+  "job_id": "4e93d39a…", "status": "done", "filename": "melodija-test.mp3",
+  "tempo_bpm": 120.19, "key": "G major", "time_signature": "4/4",
+  "note_counts": { "right_hand": 15, "left_hand": 27 },
+  "right_hand": [ {...} ], "left_hand": [ {...} ], "warnings": [],
+  "files": { "midi": "/download/4e93d39a…/midi",
+             "musicxml": "/download/4e93d39a…/musicxml", "pdf": null },
+  "musicxml": "<?xml version=\"1.0\"…"
+}
+```
+
+Uz obrazac forme idu i podešavanja: `grid` (4/8/16), `split_pitch`, `monophonic`,
+`snap_to_scale`, `quantize`, `pdf`. Uz `background=true` odgovor stiže odmah (202),
+a napredak se prati preko `/status/{job_id}` — tako radi i sama stranica.
+
+Podešavanja kroz okruženje: `NOTEMKR_JOBS_DIR`, `NOTEMKR_MAX_UPLOAD_MB` (50),
+`NOTEMKR_MAX_JOBS` (20), `NOTEMKR_HOST`, `NOTEMKR_PORT`.
 
 ## Razvoj
 ```bash
